@@ -1,0 +1,26 @@
+{
+  "omo_rate_change_bp": {
+    "medium": 25,
+    "high": 50
+  },
+  "omo_volume_change_pct": {
+    "medium": 50,
+    "high": 100
+  },
+  "gov_yield_change_bp": {
+    "medium": 5,
+    "high": 10
+  },
+  "gov_curve_slope_change_bp": {
+    "medium": 5,
+    "high": 10
+  },
+  "fx_daily_move_pct": {
+    "medium": 0.3,
+    "high": 0.7
+  },
+  "fx_policy_reference_proximity_pct": {
+    "medium": 1.0,
+    "high": 0.5
+  }
+}

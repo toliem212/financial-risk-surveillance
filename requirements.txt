@@ -1,0 +1,11 @@
+requests>=2.32,<3
+pytest>=8,<9
+psycopg[binary]>=3.2,<4
+supabase>=2.18,<3
+streamlit>=1.49,<2
+pandas>=2.2,<3
+beautifulsoup4>=4.12,<5
+openai>=1.68,<3
+
+# Use the operating-system TLS certificate store (important for some HNX chains on Windows).
+truststore>=0.10,<1

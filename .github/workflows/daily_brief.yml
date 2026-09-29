@@ -1,0 +1,33 @@
+name: Daily risk brief
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 18:30 Asia/Bangkok on weekdays.
+    - cron: '30 11 * * 1-5'
+
+jobs:
+  brief:
+    if: ${{ github.event_name == 'workflow_dispatch' || vars.AUTOMATION_ENABLED == '1' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Preflight database
+        run: python -m src.system.preflight --require-postgres
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      - name: Generate deterministic brief
+        run: python -m src.jobs.generate_daily_brief --output reports/daily-risk-brief.md
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: daily-risk-brief-${{ github.run_id }}
+          path: reports/daily-risk-brief.md
+          retention-days: 14

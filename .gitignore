@@ -1,0 +1,12 @@
+__pycache__/
+.pytest_cache/
+*.pyc
+.env
+.venv/
+data/local/*.db
+data/raw/**/*.html
+!data/raw/.gitkeep
+.streamlit/secrets.toml
+reports/*.md
+data/raw/**/*.pdf
+data/raw/**/*.json
