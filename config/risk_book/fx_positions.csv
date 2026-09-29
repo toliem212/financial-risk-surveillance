@@ -1,0 +1,2 @@
+position_id,desk,currency,position_mn_ccy,description,synthetic_flag
+FX_USD_NET,Treasury FX,USD,-32.0,Net USD position used for risk-control simulation,TRUE

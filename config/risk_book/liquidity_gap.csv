@@ -1,0 +1,5 @@
+bucket,bucket_order,inflows_bn_vnd,outflows_bn_vnd,description,synthetic_flag
+1D,1,2500,3100,Contractual cash-flow bucket,TRUE
+2-7D,2,4200,4500,Contractual cash-flow bucket,TRUE
+8-30D,3,7800,7200,Contractual cash-flow bucket,TRUE
+31-90D,4,9000,8200,Contractual cash-flow bucket,TRUE

@@ -1,0 +1,4 @@
+scenario_id,scenario_name,fx_usd_vnd_shock_pct,rates_parallel_bp,liquidity_outflow_addon_pct
+MODERATE,Moderate market and funding shock,1.5,50,5
+SEVERE,Severe combined market and funding shock,3.0,100,10
+EXTREME,Extreme combined market and funding shock,5.0,200,20

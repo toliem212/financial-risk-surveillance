@@ -1,0 +1,4 @@
+position_id,desk,bond_bucket,market_value_bn_vnd,modified_duration,position_sign,description,synthetic_flag
+GOV_5Y_BOOK,Fixed Income,5Y,800,4.3,1,TPCP 5Y bucket exposure,TRUE
+GOV_10Y_BOOK,Fixed Income,10Y,900,7.2,1,TPCP 10Y bucket exposure,TRUE
+GOV_15Y_BOOK,Fixed Income,15Y,350,9.8,1,TPCP 15Y bucket exposure,TRUE

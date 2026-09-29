@@ -1,0 +1,7 @@
+metric_id,limit_value,unit,absolute_value,description
+FX_USD_NOP_MN,50,USD_mn,TRUE,Synthetic net-open-position limit
+FX_STRESS_LOSS_BN,30,VND_bn,TRUE,Synthetic severe FX stress-loss limit
+RATES_PV01_BN_PER_BP,1.50,VND_bn_per_bp,TRUE,Synthetic TPCP PV01 limit
+RATES_STRESS_LOSS_BN,150,VND_bn,TRUE,Synthetic severe rates stress-loss limit
+LIQ_CUM_GAP_7D_BN,1500,VND_bn,TRUE,Synthetic absolute cumulative 7-day liquidity-gap limit
+LIQ_CUM_GAP_30D_BN,2500,VND_bn,TRUE,Synthetic absolute cumulative 30-day liquidity-gap limit

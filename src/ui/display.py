@@ -149,12 +149,15 @@ def title_label(value: Any) -> str:
 def render_sidebar() -> None:
     with st.sidebar:
         st.markdown("### Điều hướng")
-        st.page_link("Home.py", label="🏠 Tổng quan")
-        st.page_link("pages/1_Risk_Feed.py", label="🚨 Dòng rủi ro & Điều tra")
-        st.page_link("pages/3_Daily_Risk_Brief.py", label="📝 Bản tin rủi ro ngày")
-        st.page_link("pages/7_Historical_Replay.py", label="⏪ Tái dựng lịch sử")
-        st.page_link("pages/2_AI_Usage.py", label="🤖 Sử dụng AI & Ngân sách")
-        st.page_link("pages/8_Methodology.py", label="📚 Phương pháp & Giới hạn")
+        st.page_link("Home.py", label="T\u1ed5ng quan r\u1ee7i ro")
+        st.page_link("pages/4_Market_Risk.py", label="Market Risk")
+        st.page_link("pages/5_Liquidity_Risk.py", label="Liquidity Risk")
+        st.page_link("pages/6_Limits_Stress.py", label="Limits & EWS / Stress Testing")
+        st.page_link("pages/1_Risk_Feed.py", label="Risk Feed & Investigation")
+        st.page_link("pages/3_Daily_Risk_Brief.py", label="Daily Risk Brief")
+        st.page_link("pages/7_Historical_Replay.py", label="Historical Replay")
+        st.page_link("pages/2_AI_Usage.py", label="AI Usage & Budget")
+        st.page_link("pages/8_Methodology.py", label="Ph\u01b0\u01a1ng ph\u00e1p & gi\u1edbi h\u1ea1n")
         st.divider()
         mode = os.getenv("APP_DATA_MODE", "LIVE").strip().upper() or "LIVE"
         if mode == "DEMO":
