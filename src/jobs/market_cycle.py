@@ -48,11 +48,16 @@ def run_cycle(*, db_path: Path, raw_root: Path, thresholds_path: Path, strict: b
                 "error_message": str(exc)[:1000],
             }
 
+    failure_count = len(tasks) - success
+    status = "FAILED" if success == 0 else ("DEGRADED" if failure_count else "SUCCESS")
     summary = {
+        "status": status,
         "target_date": target_date.isoformat(),
         "success_count": success,
-        "failure_count": len(tasks) - success,
+        "failure_count": failure_count,
+        "unavailable_sources": [name for name, payload in result.items() if payload.get("status") == "FAILED"],
         "sources": result,
+        "note": "A failed source is unavailable/missing data, never a zero market value.",
     }
     if success == 0 or (strict and success != len(tasks)):
         raise RuntimeError(json.dumps(summary, ensure_ascii=False))

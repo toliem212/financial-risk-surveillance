@@ -12,3 +12,5 @@
 10. **Macro publication timestamp may be unavailable.** The project keeps first-observed time instead of inventing a source vintage.
 11. **AI is optional and separately billed.** ChatGPT Plus does not include API usage.
 12. **No bank-internal data.** Public-market observations do not demonstrate any institution's actual holdings, limits, P&L or risk appetite.
+
+13. **GitHub-hosted Linux TLS can differ from local/browser trust for HNX/CBIS.** Those sources are still validated for live ingestion in supported environments, but a GitHub-runner TLS failure is recorded as source-unavailable and the cloud workflow continues in `DEGRADED` mode. Missing source data are never converted to zero.

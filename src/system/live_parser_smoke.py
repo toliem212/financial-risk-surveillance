@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 from datetime import date, timedelta
+import os
 
 from src.ingestion.hnx_cbonds import (
     BOND_LIST_URL, DISCLOSURE_URL, ISSUER_LIST_URL, RATING_URL, TRADING_STATUS_URL,
@@ -13,6 +14,17 @@ from src.ingestion.hnx_gov import fetch_auctions, fetch_secondary_day, parse_auc
 from src.ingestion.sbv_macro import PAGES as SBV_MACRO_PAGES, fetch_page as sbv_macro_fetch_page, parse_page as parse_sbv_macro
 from src.ingestion.sbv_omo import fetch_omo_html, parse_omo_html
 from src.ingestion.vira import fetch_latest_articles, parse_article_html
+
+
+OPTIONAL_CLOUD_SOURCES = {
+    "HNX_GOV_SECONDARY",
+    "HNX_GOV_AUCTION",
+    "CBIS_ISSUERS",
+    "CBIS_BONDS",
+    "CBIS_RATINGS",
+    "CBIS_DISCLOSURES",
+    "CBIS_TRADING_STATUS",
+}
 
 
 def _row(source: str, fetch_ok: bool, parse_ok: bool, record_count: int | None = None, detail: str = '') -> dict:
@@ -121,14 +133,26 @@ def run_live_parser_smoke(*, hnx_date: date | None = None) -> dict:
 
     fetch_ok = sum(1 for r in rows if r['fetch_ok'])
     parse_ok = sum(1 for r in rows if r['parse_ok'])
+    required_rows = [r for r in rows if r['source'] not in OPTIONAL_CLOUD_SOURCES]
+    degraded_rows = [r for r in rows if r['source'] in OPTIONAL_CLOUD_SOURCES and not r['parse_ok']]
+    required_ok = all(r['parse_ok'] for r in required_rows)
+    status = 'FAILED' if not required_ok else ('DEGRADED' if degraded_rows else 'SUCCESS')
     return {
-        'ok': all(r['parse_ok'] for r in rows),
+        'ok': required_ok,
+        'status': status,
         'hnx_date': target.isoformat(),
         'fetch_ok_count': fetch_ok,
         'parse_ok_count': parse_ok,
+        'required_check_count': len(required_rows),
+        'degraded_source_count': len(degraded_rows),
+        'degraded_sources': [r['source'] for r in degraded_rows],
         'total_checks': len(rows),
         'checks': rows,
-        'note': 'This smoke test performs live fetch+parse only and does not write observations, events, raw archive or signals.',
+        'note': (
+            'This smoke test is non-destructive. HNX/CBIS are optional on GitHub-hosted Linux runners because '
+            'their public TLS chain can be environment-specific. An unavailable optional source produces DEGRADED '
+            'status and is never interpreted as zero. Core SBV/VIRA parser failures still fail the workflow.'
+        ),
     }
 
 
@@ -138,6 +162,9 @@ def main() -> None:
     args = p.parse_args()
     result = run_live_parser_smoke(hnx_date=args.hnx_date)
     print(json.dumps(result, ensure_ascii=False, indent=2, default=str))
+    if result.get('status') == 'DEGRADED' and os.getenv('GITHUB_ACTIONS', '').lower() == 'true':
+        names = ', '.join(result.get('degraded_sources', []))
+        print(f'::warning::Live parser smoke completed in DEGRADED mode. Unavailable optional sources: {names}')
     raise SystemExit(0 if result['ok'] else 1)
 
 

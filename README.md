@@ -2,7 +2,7 @@
 
 **Release candidate: v1.0.0-rc3.6**
 
-An automated near-real-time public-data surveillance system for Vietnam's money, FX and fixed-income markets. It focuses on public-market monitoring, data quality, event detection and point-in-time investigation.
+A source-aware public-data surveillance system for Vietnam's money, FX and fixed-income markets. It combines automated ingestion with explicit degraded-mode handling when a public source is unavailable.
 
 ## What the system does
 
@@ -45,7 +45,7 @@ SBV / HNX Government Bonds / HNX CBIS / VIRA / slow-moving SBV macro context
 - deterministic Daily Risk Brief with Markdown download;
 - source-run/system-health history;
 - optional OpenAI investigation/disclosure enrichment with token/call budgets and caching;
-- GitHub Actions automation designed to run without the user's laptop.
+- GitHub Actions automation for cloud-compatible sources, with explicit degraded handling for environment-specific source failures.
 
 ## Important positioning
 
@@ -58,7 +58,7 @@ This is **not**:
 
 The correct description is:
 
-> **Automated near-real-time public-data financial risk surveillance and incident investigation.**
+> **Automated public-data risk surveillance with source-aware degradation, point-in-time investigation and validated on-demand ingestion.**
 
 ## Windows / VS Code quick start
 
