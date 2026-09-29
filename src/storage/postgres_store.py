@@ -28,7 +28,8 @@ class PostgresStore:
                 value = json.loads(value)
             except json.JSONDecodeError:
                 return Jsonb({"raw": value})
-        return Jsonb(value)
+        safe_value = json.loads(json.dumps(value, ensure_ascii=False, default=str))
+        return Jsonb(safe_value)
 
     def insert_source_run(self, row: dict) -> None:
         cols = list(row)

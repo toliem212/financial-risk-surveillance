@@ -374,7 +374,7 @@ def fetch_page(url: str) -> tuple[str, datetime]:
         raise CbisSourceError(
             "CBIS connection timed out. The source is reachable publicly, but this local network/request path did not respond; retry later or test from GitHub Actions/cloud."
         ) from exc
-    except requests.SSLError as exc:
+    except requests.exceptions.SSLError as exc:
         raise CbisSourceError(
             "CBIS TLS verification failed even after trying the operating-system trust store."
         ) from exc
