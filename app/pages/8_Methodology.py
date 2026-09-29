@@ -1,3 +1,11 @@
+from pathlib import Path
+import sys
+
+# Make repository root importable on local Windows and Streamlit Cloud.
+_REPO_ROOT = Path(__file__).resolve().parents[1] if Path(__file__).parent.name == "app" else Path(__file__).resolve().parents[2]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
 from __future__ import annotations
 
 import streamlit as st
