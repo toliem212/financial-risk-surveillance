@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   schedule:
     # 07:00-12:59 Asia/Bangkok, weekdays. Publication-driven source: 30-minute poll is enough.
-    - cron: '0,30 0-5 * * 1-5'
+    - cron: '35 1,5,9 * * 1-5'
 
 concurrency:
   group: vira-ingestion

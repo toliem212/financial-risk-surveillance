@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   schedule:
     # 18:30 Asia/Bangkok on weekdays.
-    - cron: '30 11 * * 1-5'
+    - cron: '45 11 * * 1-5'
 
 jobs:
   brief:

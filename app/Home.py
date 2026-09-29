@@ -63,8 +63,38 @@ try:
     vira_obs = _df(store.recent_observations(source="VIRA", limit=250))
 
     c1, c2, c3 = st.columns(3)
-    latest_status = runs.iloc[0]["status"] if not runs.empty else "CHƯA CHẠY"
-    c1.metric("Lần ingest gần nhất", latest_status)
+    if runs.empty:
+        latest_status = "CH\u01afa CH\u1ea0Y"
+    else:
+        status_view = runs.copy()
+        status_view["started_ts"] = pd.to_datetime(
+            status_view["started_at"], utc=True, errors="coerce"
+        )
+        status_view = status_view.dropna(subset=["started_ts"]).sort_values(
+            "started_ts", ascending=False
+        )
+    
+        if status_view.empty:
+            latest_status = "KH\u00d4NG X\u00c1C \u0110\u1ecaNH"
+        else:
+            latest_ts = status_view["started_ts"].iloc[0]
+            latest_window = status_view[
+                status_view["started_ts"] >= latest_ts - pd.Timedelta(minutes=15)
+            ]
+            statuses = latest_window["status"].astype(str).str.upper()
+            failed = statuses.str.contains("FAIL|ERROR", regex=True, na=False)
+            succeeded = statuses.str.contains("SUCCESS|OK", regex=True, na=False)
+    
+            if failed.any() and succeeded.any():
+                latest_status = "DEGRADED"
+            elif failed.all() and len(statuses) > 0:
+                latest_status = "FAILED"
+            elif succeeded.any():
+                latest_status = "SUCCESS"
+            else:
+                latest_status = "KH\u00d4NG X\u00c1C \u0110\u1ecaNH"
+    
+    c1.metric("Tr\u1ea1ng th\u00e1i d\u1eef li\u1ec7u g\u1ea7n nh\u1ea5t", latest_status)
     c2.metric("Quan sát gần nhất", len(obs))
     c3.metric("Cảnh báo gần đây", len(signals))
 
