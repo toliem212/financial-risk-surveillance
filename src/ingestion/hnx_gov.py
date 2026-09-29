@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import html as html_lib
+import os
 import re
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
@@ -265,6 +266,8 @@ def _session(reference_url: str) -> requests.Session:
     # Use the OS trust store when available. This fixes a common Windows case where
     # browsers can build the HNX certificate chain but Requests/certifi cannot.
     s = resilient_session(user_agent=_HEADERS["User-Agent"], retries=2)
+    if os.getenv("FRS_HNX_TLS_COMPAT", "0") == "1":
+        s.verify = False
     try:
         s.get(reference_url, timeout=(12, 30))
     except requests.RequestException:

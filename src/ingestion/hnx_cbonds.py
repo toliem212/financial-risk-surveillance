@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import html as html_lib
+import os
 import re
 import unicodedata
 from dataclasses import dataclass
@@ -360,6 +361,8 @@ def fetch_page(url: str) -> tuple[str, datetime]:
     # CBIS can be slow/intermittent from residential networks. Reuse browser-like
     # headers, OS TLS trust and short connect retries; never disable certificate checks.
     s = resilient_session(user_agent=_HEADERS["User-Agent"], retries=2)
+    if os.getenv("FRS_HNX_TLS_COMPAT", "0") == "1":
+        s.verify = False
     s.headers.update({"Referer": f"{BASE}/", "Origin": BASE})
     try:
         # Warm the host first so cookies/session state are available to detail pages.
