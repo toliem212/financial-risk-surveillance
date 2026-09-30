@@ -101,15 +101,26 @@ def build_risk_feed(store, *, signal_limit: int = 200, event_limit: int = 100, l
     items: list[dict] = []
     for s in signals:
         evidence = _json(s.get("evidence_json"))
+        generated_at = str(s.get("generated_at") or "")
+        market_date = str(
+            evidence.get("current_period")
+            or evidence.get("period_end")
+            or generated_at[:10]
+            or ""
+        )
         items.append({
             "feed_id": f"signal:{s['signal_id']}",
             "item_type": "SIGNAL",
-            "timestamp": str(s.get("generated_at") or ""),
+            "timestamp": market_date,
+            "event_date": None,
+            "generated_at": generated_at,
             "severity": str(s.get("severity") or "INFO"),
             "domain": str(s.get("domain") or "OTHER"),
+            "signal_type": str(s.get("signal_type") or ""),
             "title": _signal_title(s),
             "entity_id": s.get("entity_id"),
             "source": evidence.get("source") or evidence.get("secondary_source") or "RULE_ENGINE",
+            "status": str(s.get("status") or "OPEN"),
             "signal_id": s["signal_id"],
             "event_id": None,
         })
@@ -121,12 +132,25 @@ def build_risk_feed(store, *, signal_limit: int = 200, event_limit: int = 100, l
         sev = event_severity(clean)
         if sev != "INFO":
             continue
+        observed_date = str(
+            e.get("announced_at")
+            or e.get("first_observed_at")
+            or ""
+        )[:10]
+        event_date = str(
+            e.get("event_date")
+            or e.get("effective_date")
+            or ""
+        )[:10]
         items.append({
             "feed_id": f"event:{e['event_id']}",
             "item_type": "EVENT",
-            "timestamp": str(e.get("first_observed_at") or e.get("announced_at") or e.get("event_date") or ""),
+            "timestamp": observed_date,
+            "event_date": event_date or None,
+            "generated_at": str(e.get("first_observed_at") or ""),
             "severity": "INFO",
             "domain": "CORPORATE_BOND",
+            "signal_type": None,
             "title": {
                 "REGISTRATION": "Đăng ký giao dịch (Registration)",
                 "DELISTING": "Hủy đăng ký giao dịch (Delisting)",
@@ -136,11 +160,19 @@ def build_risk_feed(store, *, signal_limit: int = 200, event_limit: int = 100, l
             }.get(str(e.get("event_type") or ""), str(e.get("event_type") or "Sự kiện TPDN").replace("_", " ").title()),
             "entity_id": e.get("bond_id") or e.get("issuer_id"),
             "source": e.get("source"),
+            "status": None,
             "signal_id": None,
             "event_id": e["event_id"],
         })
 
-    items.sort(key=lambda x: (x.get("timestamp") or "", SEVERITY_RANK.get(x.get("severity", "INFO"), 0)), reverse=True)
+    items.sort(
+        key=lambda x: (
+            x.get("timestamp") or "",
+            x.get("generated_at") or "",
+            SEVERITY_RANK.get(x.get("severity", "INFO"), 0),
+        ),
+        reverse=True,
+    )
     return items[:limit]
 
 
@@ -157,18 +189,90 @@ class InvestigationCase:
 
 def _latest_related(rows: list[dict], domain: str, limit: int = 30) -> list[dict]:
     prefixes = RELATED_PREFIXES.get(domain, ())
-    filtered = [r for r in rows if any(str(r.get("metric_id") or "").startswith(p) for p in prefixes)]
+    filtered = [
+        r for r in rows
+        if any(str(r.get("metric_id") or "").startswith(p) for p in prefixes)
+    ]
     chosen: dict[tuple, dict] = {}
     for r in filtered:
         key = (r.get("metric_id"), r.get("entity_id"), r.get("source"))
         stamp = (str(r.get("period_end") or ""), str(r.get("fetched_at") or ""))
         old = chosen.get(key)
-        old_stamp = (str(old.get("period_end") or ""), str(old.get("fetched_at") or "")) if old else None
+        old_stamp = (
+            (str(old.get("period_end") or ""), str(old.get("fetched_at") or ""))
+            if old else None
+        )
         if old is None or stamp > old_stamp:
             chosen[key] = r
+
+    def prefix_rank(row: dict) -> int:
+        metric = str(row.get("metric_id") or "")
+        for idx, prefix in enumerate(prefixes):
+            if metric.startswith(prefix):
+                return idx
+        return len(prefixes)
+
     out = list(chosen.values())
-    out.sort(key=lambda r: (str(r.get("period_end") or ""), str(r.get("metric_id") or "")), reverse=True)
+    # Stable two-step sort: newest within each source family, preferred source family first.
+    out.sort(
+        key=lambda r: (str(r.get("period_end") or ""), str(r.get("fetched_at") or "")),
+        reverse=True,
+    )
+    out.sort(key=prefix_rank)
     return out[:limit]
+
+
+def _latest_by_period(rows: list[dict]) -> dict[str, dict]:
+    chosen: dict[str, dict] = {}
+    for row in rows:
+        period = str(row.get("period_end") or "")
+        if not period:
+            continue
+        old = chosen.get(period)
+        if old is None or str(row.get("fetched_at") or "") > str(old.get("fetched_at") or ""):
+            chosen[period] = row
+    return chosen
+
+
+def _curve_history(store, *, start_date: str, end_date: str) -> dict[str, Any]:
+    five = store.observations_between(
+        metric_id="HNX.GOV.TENOR_YIELD",
+        entity_id="GOV_TENOR:5Y",
+        start_date=start_date,
+        end_date=end_date,
+        source=None,
+    )
+    ten = store.observations_between(
+        metric_id="HNX.GOV.TENOR_YIELD",
+        entity_id="GOV_TENOR:10Y",
+        start_date=start_date,
+        end_date=end_date,
+        source=None,
+    )
+    by5 = _latest_by_period(five)
+    by10 = _latest_by_period(ten)
+    periods = sorted(set(by5).intersection(by10))
+    values = [
+        (float(by10[d]["value"]) - float(by5[d]["value"])) * 100.0
+        for d in periods
+        if by5[d].get("value") is not None and by10[d].get("value") is not None
+    ]
+    hist: dict[str, Any] = {
+        "metric_id": "HNX.GOV.CURVE_SLOPE_5Y10Y",
+        "entity_id": "GOV_CURVE:5Y10Y",
+        "unit": "bp",
+        "count": len(values),
+        "window_start": start_date,
+        "window_end": end_date,
+    }
+    if values:
+        hist.update({
+            "min": min(values),
+            "max": max(values),
+            "latest": values[-1],
+            "first": values[0],
+        })
+    return hist
 
 
 def _primary_metric(signal: dict, evidence: dict) -> tuple[str | None, str | None]:
@@ -198,17 +302,24 @@ def build_investigation_case(store, signal_id: str) -> InvestigationCase:
         "flags_present": quality_flags,
         "questionable_count": len(questionable),
         "status": "REVIEW" if any(f in {"D", "X"} for f in quality_flags) else ("CAUTION" if "C" in quality_flags else "OK"),
-        "note": "Quality status reflects related public observations; it does not validate any bank-internal exposure.",
+        "note": "Trạng thái DQ phản ánh các quan sát thị trường công khai liên quan; không dùng để xác nhận exposure nội bộ mô phỏng.",
     }
 
     metric, entity = _primary_metric(signal, evidence)
     hist: dict[str, Any] = {"metric_id": metric, "entity_id": entity, "count": 0}
-    if metric:
-        end = evidence.get("current_period") or evidence.get("period_end")
-        if end:
-            try:
-                end_date = date.fromisoformat(str(end)[:10])
-                start_date = end_date - timedelta(days=60)
+    end = evidence.get("current_period") or evidence.get("period_end")
+    if end:
+        try:
+            end_date = date.fromisoformat(str(end)[:10])
+            start_date = end_date - timedelta(days=60)
+            typ = str(signal.get("signal_type") or "")
+            if typ in {"CURVE_STEEPENING", "CURVE_FLATTENING"}:
+                hist = _curve_history(
+                    store,
+                    start_date=start_date.isoformat(),
+                    end_date=end_date.isoformat(),
+                )
+            elif metric:
                 rows = store.observations_between(
                     metric_id=metric,
                     entity_id=entity,
@@ -226,9 +337,10 @@ def build_investigation_case(store, signal_id: str) -> InvestigationCase:
                         "first": values[0],
                         "window_start": start_date.isoformat(),
                         "window_end": end_date.isoformat(),
+                        "unit": rows[-1].get("unit"),
                     })
-            except Exception:
-                pass
+        except Exception:
+            pass
 
     return InvestigationCase(
         signal=dict(signal), evidence=evidence, related_observations=related,
