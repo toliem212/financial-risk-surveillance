@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import json
 from typing import Any
+from uuid import UUID
 
 import pandas as pd
 
 
 def _display_scalar(value: Any) -> Any:
+    if isinstance(value, UUID):
+        return str(value)
     if isinstance(value, (dict, list, tuple, set)):
         try:
             return json.dumps(value, ensure_ascii=False, sort_keys=True, default=str)

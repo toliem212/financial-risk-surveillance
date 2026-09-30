@@ -119,6 +119,37 @@ CREATE TABLE IF NOT EXISTS bond_event (
     event_hash TEXT NOT NULL UNIQUE
 );
 
+CREATE TABLE IF NOT EXISTS investigation_case (
+    case_id TEXT PRIMARY KEY,
+    signal_id TEXT NOT NULL UNIQUE,
+    priority TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'OPEN'
+        CHECK (status IN ('OPEN','INVESTIGATING','ESCALATED','RESOLVED','CLOSED')),
+    owner TEXT,
+    investigation_note TEXT,
+    resolution TEXT,
+    opened_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    closed_at TEXT,
+    FOREIGN KEY(signal_id) REFERENCES risk_signal(signal_id)
+);
+CREATE INDEX IF NOT EXISTS idx_investigation_case_status_updated
+ON investigation_case(status, updated_at);
+
+CREATE TABLE IF NOT EXISTS investigation_audit (
+    audit_id TEXT PRIMARY KEY,
+    case_id TEXT NOT NULL,
+    action_type TEXT NOT NULL,
+    from_status TEXT,
+    to_status TEXT,
+    owner TEXT,
+    note TEXT,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY(case_id) REFERENCES investigation_case(case_id)
+);
+CREATE INDEX IF NOT EXISTS idx_investigation_audit_case_created
+ON investigation_audit(case_id, created_at);
+
 CREATE TABLE IF NOT EXISTS ai_cache (
     cache_key TEXT PRIMARY KEY,
     feature TEXT NOT NULL,
@@ -162,6 +193,7 @@ class SQLiteStore:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.conn = sqlite3.connect(self.path)
         self.conn.row_factory = sqlite3.Row
+        self.conn.execute("PRAGMA foreign_keys = ON")
         self.conn.executescript(DDL)
 
     def close(self):
@@ -275,6 +307,68 @@ class SQLiteStore:
             added += max(cur.rowcount, 0)
         self.conn.commit()
         return added
+
+
+    def get_investigation_case(self, case_id: str):
+        row = self.conn.execute(
+            "SELECT * FROM investigation_case WHERE case_id=?",
+            (case_id,),
+        ).fetchone()
+        return dict(row) if row else None
+
+    def get_investigation_case_by_signal(self, signal_id: str):
+        row = self.conn.execute(
+            "SELECT * FROM investigation_case WHERE signal_id=?",
+            (signal_id,),
+        ).fetchone()
+        return dict(row) if row else None
+
+    def create_investigation_case(self, row: dict) -> None:
+        cols = list(row)
+        sql = (
+            f"INSERT INTO investigation_case ({','.join(cols)}) "
+            f"VALUES ({','.join('?' for _ in cols)})"
+        )
+        self.conn.execute(sql, [row[c] for c in cols])
+        self.conn.commit()
+
+    def update_investigation_case(self, case_id: str, changes: dict) -> None:
+        if not changes:
+            return
+        allowed = {
+            "priority", "status", "owner", "investigation_note",
+            "resolution", "updated_at", "closed_at",
+        }
+        unknown = set(changes) - allowed
+        if unknown:
+            raise ValueError(f"Unsupported investigation_case fields: {sorted(unknown)}")
+        cols = list(changes)
+        sql = "UPDATE investigation_case SET " + ",".join(f"{c}=?" for c in cols) + " WHERE case_id=?"
+        self.conn.execute(sql, [changes[c] for c in cols] + [case_id])
+        self.conn.commit()
+
+    def insert_investigation_audit(self, row: dict) -> None:
+        cols = list(row)
+        sql = (
+            f"INSERT INTO investigation_audit ({','.join(cols)}) "
+            f"VALUES ({','.join('?' for _ in cols)})"
+        )
+        self.conn.execute(sql, [row[c] for c in cols])
+        self.conn.commit()
+
+    def investigation_audit(self, case_id: str, limit: int = 100) -> list[dict]:
+        rows = self.conn.execute(
+            "SELECT * FROM investigation_audit WHERE case_id=? ORDER BY created_at DESC LIMIT ?",
+            (case_id, limit),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    def recent_investigation_cases(self, limit: int = 100) -> list[dict]:
+        rows = self.conn.execute(
+            "SELECT * FROM investigation_case ORDER BY updated_at DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+        return [dict(r) for r in rows]
 
 
     def replay_observation_history(self, cutoff: str, *, mode: str = "SYSTEM_KNOWN", limit: int = 10000) -> list[dict]:
@@ -410,7 +504,7 @@ class SQLiteStore:
 
     def counts(self) -> dict:
         out = {}
-        for table in ["source_run", "market_observation", "risk_signal", "issuer_master", "bond_master", "bond_event", "ai_cache", "ai_usage_log", "project_meta"]:
+        for table in ["source_run", "market_observation", "risk_signal", "issuer_master", "bond_master", "bond_event", "investigation_case", "investigation_audit", "ai_cache", "ai_usage_log", "project_meta"]:
             out[table] = self.conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
         return out
 

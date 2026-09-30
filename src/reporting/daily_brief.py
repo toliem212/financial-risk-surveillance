@@ -56,6 +56,7 @@ def build_daily_risk_brief(store, *, generated_at: datetime | None = None) -> st
     signals = store.recent_signals(300)
     observations = store.recent_observations(limit=5000)
     events = store.recent_bond_events(100)
+    cases = store.recent_investigation_cases(200)
 
     signals = sorted(
         signals,
@@ -64,6 +65,10 @@ def build_daily_risk_brief(store, *, generated_at: datetime | None = None) -> st
     )
     elevated = [s for s in signals if SEVERITY_RANK.get(str(s.get("severity") or "INFO"), 0) >= 2]
     domain_counts = Counter(str(s.get("domain") or "OTHER") for s in elevated)
+
+    signal_by_id = {str(s.get("signal_id")): s for s in signals}
+    active_cases = [c for c in cases if str(c.get("status") or "OPEN").upper() != "CLOSED"]
+    escalated_cases = [c for c in active_cases if str(c.get("status") or "").upper() == "ESCALATED"]
 
     lines: list[str] = [
         "# Bản tin Giám sát Rủi ro Tài chính Việt Nam — Daily Risk Brief",
@@ -87,6 +92,22 @@ def build_daily_risk_brief(store, *, generated_at: datetime | None = None) -> st
         lines.append("- Không có deterministic signal mức MEDIUM/HIGH/CRITICAL trong cửa sổ dữ liệu hiện tại.")
     if domain_counts:
         lines.append("- Cơ cấu signal elevated: " + ", ".join(f"{k}={v}" for k, v in domain_counts.most_common()))
+
+    lines += ["", "## Investigation & escalation"]
+    if active_cases:
+        lines.append(
+            f"- Có {len(active_cases)} case đang xử lý; trong đó {len(escalated_cases)} case ở trạng thái ESCALATED."
+        )
+        for c in active_cases[:5]:
+            sig = signal_by_id.get(str(c.get("signal_id")), {})
+            lines.append(
+                f"- [{c.get('status')}] {c.get('priority') or '—'} · "
+                f"{sig.get('domain') or 'OTHER'}"
+                + (f" · {sig.get('entity_id')}" if sig.get("entity_id") else "")
+                + f" · owner={c.get('owner') or 'chưa phân công'}"
+            )
+    else:
+        lines.append("- Không có investigation case đang xử lý.")
 
     lines += ["", "## Thị trường tiền tệ & thanh khoản"]
     lines.append(_metric_line("Lãi suất OMO 7D của NHNN", _latest_metric(observations, "SBV.OMO.RATE", ":7D")))

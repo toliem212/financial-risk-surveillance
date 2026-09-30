@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from src.investigation.case_management import (
     case_priority,
     case_workflow,
+    evidence_summary,
     escalation_guidance,
     feed_summary,
     latest_feed_view,
@@ -98,8 +99,8 @@ def test_workflow_uses_persisted_signal_status_without_inventing_case_state():
             status="OPEN",
         )
     )
-    assert out[-1]["state"] == "ĐANG MỞ"
-    assert "lifecycle" in out[-1]["detail"]
+    assert out[-1]["state"] == "CHƯA MỞ CASE"
+    assert "chưa được đưa vào luồng xử lý case" in out[-1]["detail"]
 
 
 def test_latest_feed_view_collapses_historical_repeats():
@@ -141,3 +142,16 @@ def test_curve_signal_value_table_uses_basis_points():
     })
     out = signal_value_table(case)
     assert set(out["Đơn vị"]) == {"bp"}
+
+
+def test_evidence_summary_localizes_common_fields():
+    case = _case()
+    case.evidence = {
+        "unit": "bp",
+        "curve_type": "derived_public_trade_curve",
+        "current_period": "2026-09-29",
+        "nested": {"skip": True},
+    }
+    out = evidence_summary(case)
+    assert list(out["Bằng chứng"]) == ["Đơn vị", "Loại đường cong", "Ngày dữ liệu"]
+    assert "nested" not in out["Bằng chứng"].astype(str).str.lower().tolist()

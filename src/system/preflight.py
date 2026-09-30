@@ -49,7 +49,7 @@ def run_preflight(*, db_path: Path, write_meta: bool = True, require_postgres: b
         store = create_store(local_db_path=db_path)
         counts = store.counts()
         checks.append(_check("Database connection", True, backend))
-        expected = {"source_run", "market_observation", "risk_signal", "issuer_master", "bond_master", "bond_event", "ai_cache", "ai_usage_log", "project_meta"}
+        expected = {"source_run", "market_observation", "risk_signal", "issuer_master", "bond_master", "bond_event", "investigation_case", "investigation_audit", "ai_cache", "ai_usage_log", "project_meta"}
         missing = sorted(expected - set(counts))
         checks.append(_check("Database schema", not missing, "ok" if not missing else f"missing: {', '.join(missing)}"))
         if write_meta and not missing:

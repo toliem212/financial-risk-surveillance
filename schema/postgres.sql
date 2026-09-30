@@ -114,6 +114,36 @@ create table if not exists bond_event (
   event_hash text not null unique
 );
 
+-- Persistent investigation workflow. One investigation case per deterministic risk signal.
+create table if not exists investigation_case (
+  case_id uuid primary key,
+  signal_id uuid not null unique references risk_signal(signal_id),
+  priority text not null,
+  status text not null default 'OPEN'
+    check (status in ('OPEN','INVESTIGATING','ESCALATED','RESOLVED','CLOSED')),
+  owner text,
+  investigation_note text,
+  resolution text,
+  opened_at timestamptz not null,
+  updated_at timestamptz not null,
+  closed_at timestamptz
+);
+create index if not exists idx_investigation_case_status_updated
+  on investigation_case(status, updated_at desc);
+
+create table if not exists investigation_audit (
+  audit_id uuid primary key,
+  case_id uuid not null references investigation_case(case_id) on delete cascade,
+  action_type text not null,
+  from_status text,
+  to_status text,
+  owner text,
+  note text,
+  created_at timestamptz not null
+);
+create index if not exists idx_investigation_audit_case_created
+  on investigation_audit(case_id, created_at desc);
+
 -- Optional AI enrichment layer. No paid API call is required for the deterministic core.
 create table if not exists ai_cache (
   cache_key text primary key,
@@ -151,5 +181,5 @@ create table if not exists project_meta (
 );
 
 insert into project_meta(key, value, updated_at)
-values ('schema_version', '1', now())
+values ('schema_version', '2', now())
 on conflict (key) do update set value=excluded.value, updated_at=excluded.updated_at;

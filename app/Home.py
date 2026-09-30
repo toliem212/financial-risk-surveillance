@@ -2,13 +2,6 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-import sys
-
-# Make repository root importable on local Windows and Streamlit Cloud.
-_REPO_ROOT = Path(__file__).resolve().parents[1] if Path(__file__).parent.name == "app" else Path(__file__).resolve().parents[2]
-if str(_REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(_REPO_ROOT))
-
 
 import pandas as pd
 import streamlit as st
@@ -17,10 +10,10 @@ from src.storage.factory import create_store
 from src.ui.display import localize_dataframe, render_sidebar
 from src.version import PROJECT_VERSION
 
-st.set_page_config(page_title="Giám sát Rủi ro Tài chính Việt Nam", layout="wide")
+st.set_page_config(page_title="Market & Liquidity Risk EWS", layout="wide")
 render_sidebar()
-st.title("Hệ thống Giám sát Rủi ro Tài chính Việt Nam")
-st.caption(f"Vietnam Financial Risk Surveillance · {PROJECT_VERSION} · giám sát rủi ro từ dữ liệu công khai gần thời gian thực")
+st.title("Market & Liquidity Risk Early Warning System")
+st.caption(f"{PROJECT_VERSION} · giám sát rủi ro thị trường & thanh khoản từ public market data + synthetic bank book")
 
 mode = os.getenv("APP_DATA_MODE", "LIVE").strip().upper() or "LIVE"
 if mode == "DEMO":
@@ -61,42 +54,52 @@ try:
     bond_events = _df(store.recent_bond_events(100))
     bonds = _df(store.recent_bonds(100))
     vira_obs = _df(store.recent_observations(source="VIRA", limit=250))
+    cases = _df(store.recent_investigation_cases(200))
+    active_cases = (
+        cases[cases["status"].astype(str).str.upper().ne("CLOSED")].copy()
+        if not cases.empty and "status" in cases.columns
+        else pd.DataFrame()
+    )
 
-    c1, c2, c3 = st.columns(3)
-    if runs.empty:
-        latest_status = "CH\u01afa CH\u1ea0Y"
-    else:
-        status_view = runs.copy()
-        status_view["started_ts"] = pd.to_datetime(
-            status_view["started_at"], utc=True, errors="coerce"
-        )
-        status_view = status_view.dropna(subset=["started_ts"]).sort_values(
-            "started_ts", ascending=False
-        )
-    
-        if status_view.empty:
-            latest_status = "KH\u00d4NG X\u00c1C \u0110\u1ecaNH"
-        else:
-            latest_ts = status_view["started_ts"].iloc[0]
-            latest_window = status_view[
-                status_view["started_ts"] >= latest_ts - pd.Timedelta(minutes=15)
-            ]
-            statuses = latest_window["status"].astype(str).str.upper()
-            failed = statuses.str.contains("FAIL|ERROR", regex=True, na=False)
-            succeeded = statuses.str.contains("SUCCESS|OK", regex=True, na=False)
-    
-            if failed.any() and succeeded.any():
-                latest_status = "DEGRADED"
-            elif failed.all() and len(statuses) > 0:
-                latest_status = "FAILED"
-            elif succeeded.any():
-                latest_status = "SUCCESS"
-            else:
-                latest_status = "KH\u00d4NG X\u00c1C \u0110\u1ecaNH"
-    
-    c1.metric("Tr\u1ea1ng th\u00e1i d\u1eef li\u1ec7u g\u1ea7n nh\u1ea5t", latest_status)
+    c1, c2, c3, c4 = st.columns(4)
+    latest_status = runs.iloc[0]["status"] if not runs.empty else "CHƯA CHẠY"
+    c1.metric("Lần ingest gần nhất", latest_status)
     c2.metric("Quan sát gần nhất", len(obs))
     c3.metric("Cảnh báo gần đây", len(signals))
+    c4.metric("Case đang xử lý", len(active_cases))
+
+    st.subheader("Investigation & escalation")
+    if active_cases.empty:
+        st.caption("Không có investigation case đang xử lý.")
+    else:
+        case_view = active_cases.copy()
+        if "status" in case_view.columns:
+            case_labels = {
+                "OPEN": "ĐANG MỞ",
+                "INVESTIGATING": "ĐANG ĐIỀU TRA",
+                "ESCALATED": "ĐÃ ESCALATE",
+                "RESOLVED": "ĐÃ XỬ LÝ",
+            }
+            case_view["status"] = case_view["status"].astype(str).str.upper().map(
+                lambda x: case_labels.get(x, x)
+            )
+        cols = [
+            c for c in ["updated_at", "status", "priority", "owner", "signal_id"]
+            if c in case_view.columns
+        ]
+        st.dataframe(
+            case_view[cols].head(10).rename(
+                columns={
+                    "updated_at": "Cập nhật",
+                    "status": "Trạng thái",
+                    "priority": "Ưu tiên",
+                    "owner": "Phụ trách",
+                    "signal_id": "Signal ID",
+                }
+            ),
+            width="stretch",
+            hide_index=True,
+        )
 
     st.subheader("Sức khỏe hệ thống (System Health)")
     if runs.empty:

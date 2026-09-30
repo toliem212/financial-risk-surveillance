@@ -28,8 +28,7 @@ class PostgresStore:
                 value = json.loads(value)
             except json.JSONDecodeError:
                 return Jsonb({"raw": value})
-        safe_value = json.loads(json.dumps(value, ensure_ascii=False, default=str))
-        return Jsonb(safe_value)
+        return Jsonb(value)
 
     def insert_source_run(self, row: dict) -> None:
         cols = list(row)
@@ -170,6 +169,65 @@ class PostgresStore:
                     added += 1
         self.conn.commit()
         return added
+
+
+    def get_investigation_case(self, case_id: str):
+        with self.conn.cursor() as cur:
+            cur.execute("SELECT * FROM investigation_case WHERE case_id=%s::uuid", (case_id,))
+            return cur.fetchone()
+
+    def get_investigation_case_by_signal(self, signal_id: str):
+        with self.conn.cursor() as cur:
+            cur.execute("SELECT * FROM investigation_case WHERE signal_id=%s::uuid", (signal_id,))
+            return cur.fetchone()
+
+    def create_investigation_case(self, row: dict) -> None:
+        cols = list(row)
+        placeholders = ",".join(["%s"] * len(cols))
+        sql = f"INSERT INTO investigation_case ({','.join(cols)}) VALUES ({placeholders})"
+        with self.conn.cursor() as cur:
+            cur.execute(sql, [row[c] for c in cols])
+        self.conn.commit()
+
+    def update_investigation_case(self, case_id: str, changes: dict) -> None:
+        if not changes:
+            return
+        allowed = {
+            "priority", "status", "owner", "investigation_note",
+            "resolution", "updated_at", "closed_at",
+        }
+        unknown = set(changes) - allowed
+        if unknown:
+            raise ValueError(f"Unsupported investigation_case fields: {sorted(unknown)}")
+        cols = list(changes)
+        sql = "UPDATE investigation_case SET " + ",".join(f"{c}=%s" for c in cols) + " WHERE case_id=%s::uuid"
+        with self.conn.cursor() as cur:
+            cur.execute(sql, [changes[c] for c in cols] + [case_id])
+        self.conn.commit()
+
+    def insert_investigation_audit(self, row: dict) -> None:
+        cols = list(row)
+        placeholders = ",".join(["%s"] * len(cols))
+        sql = f"INSERT INTO investigation_audit ({','.join(cols)}) VALUES ({placeholders})"
+        with self.conn.cursor() as cur:
+            cur.execute(sql, [row[c] for c in cols])
+        self.conn.commit()
+
+    def investigation_audit(self, case_id: str, limit: int = 100) -> list[dict]:
+        with self.conn.cursor() as cur:
+            cur.execute(
+                "SELECT * FROM investigation_audit WHERE case_id=%s::uuid ORDER BY created_at DESC LIMIT %s",
+                (case_id, limit),
+            )
+            return list(cur.fetchall())
+
+    def recent_investigation_cases(self, limit: int = 100) -> list[dict]:
+        with self.conn.cursor() as cur:
+            cur.execute(
+                "SELECT * FROM investigation_case ORDER BY updated_at DESC LIMIT %s",
+                (limit,),
+            )
+            return list(cur.fetchall())
 
 
     def replay_observation_history(self, cutoff: str, *, mode: str = "SYSTEM_KNOWN", limit: int = 10000) -> list[dict]:
@@ -314,7 +372,7 @@ class PostgresStore:
     def counts(self) -> dict:
         out = {}
         with self.conn.cursor() as cur:
-            for table in ["source_run", "market_observation", "risk_signal", "issuer_master", "bond_master", "bond_event", "ai_cache", "ai_usage_log", "project_meta"]:
+            for table in ["source_run", "market_observation", "risk_signal", "issuer_master", "bond_master", "bond_event", "investigation_case", "investigation_audit", "ai_cache", "ai_usage_log", "project_meta"]:
                 cur.execute(f"SELECT COUNT(*) AS n FROM {table}")
                 out[table] = cur.fetchone()["n"]
         return out
@@ -342,7 +400,7 @@ class PostgresStore:
 
     def get_signal(self, signal_id: str):
         with self.conn.cursor() as cur:
-            cur.execute("SELECT * FROM risk_signal WHERE signal_id=%s", (signal_id,))
+            cur.execute("SELECT * FROM risk_signal WHERE signal_id=%s::uuid", (signal_id,))
             return cur.fetchone()
 
     def recent_signals(self, limit: int = 50) -> list[dict]:

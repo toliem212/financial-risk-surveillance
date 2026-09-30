@@ -34,6 +34,8 @@ STATUS_VI = {
     "CLOSED": "ĐÃ ĐÓNG",
     "ACKNOWLEDGED": "ĐÃ XÁC NHẬN",
     "INVESTIGATING": "ĐANG ĐIỀU TRA",
+    "ESCALATED": "ĐÃ ESCALATE",
+    "RESOLVED": "ĐÃ XỬ LÝ",
 }
 
 DQ_VI = {
@@ -227,6 +229,39 @@ def signal_value_table(case) -> pd.DataFrame:
     df = pd.DataFrame(rows, columns=["Chỉ tiêu", "Giá trị", "Đơn vị"])
     return df[df["Giá trị"].notna()].reset_index(drop=True)
 
+EVIDENCE_LABELS = {
+    "current_period": "Ngày dữ liệu",
+    "previous_period": "Ngày tham chiếu",
+    "unit": "Đơn vị",
+    "curve_type": "Loại đường cong",
+    "tenor": "Kỳ hạn",
+    "source": "Nguồn",
+    "metric_id": "Metric",
+    "entity_id": "Đối tượng",
+    "reason": "Lý do",
+    "current_value": "Giá trị hiện tại",
+    "baseline_value": "Mức tham chiếu",
+    "threshold": "Ngưỡng cảnh báo",
+}
+
+
+def evidence_summary(case, limit: int = 12) -> pd.DataFrame:
+    """Return a compact business-readable view of deterministic signal evidence."""
+    evidence = case.evidence if isinstance(case.evidence, dict) else {}
+    rows: list[tuple[str, Any]] = []
+    for key, value in evidence.items():
+        if value is None or isinstance(value, (dict, list, tuple, set)):
+            continue
+        label = EVIDENCE_LABELS.get(str(key), str(key).replace("_", " ").strip().title())
+        display = value
+        if isinstance(value, float):
+            display = f"{value:,.4f}"
+        rows.append((label, display))
+        if len(rows) >= limit:
+            break
+    return pd.DataFrame(rows, columns=["Bằng chứng", "Giá trị"])
+
+
 def case_priority(case) -> dict[str, str]:
     signal = dict(case.signal)
     severity = str(signal.get("severity") or "INFO").upper()
@@ -307,9 +342,13 @@ def escalation_guidance(case) -> str:
     return "Theo dõi định kỳ; chưa có trigger escalation từ severity hiện tại."
 
 
-def case_workflow(case) -> list[dict[str, str]]:
+def case_workflow(case, persisted_case: dict | None = None) -> list[dict[str, str]]:
     signal = dict(case.signal)
-    status = str(signal.get("status") or "OPEN").upper()
+    case_status = (
+        str(persisted_case.get("status") or "OPEN").upper()
+        if persisted_case
+        else None
+    )
     dq = str(case.data_quality.get("status") or "OK").upper()
     domain = str(signal.get("domain") or "OTHER").upper()
 
@@ -338,9 +377,13 @@ def case_workflow(case) -> list[dict[str, str]]:
             ),
         },
         {
-            "step": "5. Trạng thái signal",
-            "state": STATUS_VI.get(status, status),
-            "detail": "Trạng thái lifecycle hiện được lưu cùng signal trong hệ thống.",
+            "step": "5. Trạng thái case",
+            "state": STATUS_VI.get(case_status, case_status) if persisted_case else "CHƯA MỞ CASE",
+            "detail": (
+                "Trạng thái case được lưu và theo dõi trong hệ thống."
+                if persisted_case
+                else "Signal chưa được đưa vào luồng xử lý case."
+            ),
         },
     ]
 
