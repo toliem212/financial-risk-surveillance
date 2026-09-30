@@ -48,3 +48,26 @@ The dashboard reports data coverage rather than fabricating a VaR estimate from 
 - 250 sessions: minimum sample gate before Historical VaR / ES is enabled in a later milestone.
 
 The next milestone is historical backfill and point-in-time return/yield-change series, followed by Historical VaR, parametric VaR, ES and backtesting.
+
+## Quant VaR / ES layer
+
+The deterministic quant layer implements:
+
+- simple returns for FX market levels;
+- daily government-bond yield changes in basis points;
+- sensitivity-based historical rate P&L using current synthetic PV01 by tenor;
+- Historical VaR at 99%;
+- Expected Shortfall at 97.5% and 99%;
+- Parametric/Normal VaR at 99%;
+- rolling Historical VaR backtesting with a 250-observation estimation window.
+
+Project governance for the prototype:
+
+- READY: at least 250 valid historical P&L observations;
+- INDICATIVE: 200-249 valid historical P&L observations;
+- NOT_READY: fewer than 200 valid historical P&L observations.
+
+The 200-observation INDICATIVE gate is an internal prototype convention, not a regulatory
+minimum or an industry requirement. Backtesting is not shortened to fit the available sample.
+Rate moves exceeding the MVP data-quality threshold are excluded from the VaR sample and counted
+as DQ exclusions rather than silently winsorized or replaced. No synthetic market history is created.

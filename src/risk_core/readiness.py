@@ -7,7 +7,7 @@ HISTORICAL_VAR_MIN_SESSIONS = 250
 MONITORING_MIN_SESSIONS = 60
 
 
-def history_readiness(store, *, limit: int = 10000) -> pd.DataFrame:
+def history_readiness(store, *, limit: int = 100000) -> pd.DataFrame:
     rows = store.recent_observations(limit=limit)
     if not rows:
         return pd.DataFrame(columns=["risk_factor", "sessions", "monitoring_ready", "historical_var_ready"])
